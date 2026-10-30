@@ -230,7 +230,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:30px 0 40px}
 import { initializeApp } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
 import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile, sendPasswordResetEmail }
   from "https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
-import { getFirestore, doc, setDoc, updateDoc, addDoc, deleteDoc, onSnapshot, collection, query, orderBy, limit, serverTimestamp, arrayUnion }
+import { getFirestore, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, onSnapshot, collection, query, orderBy, limit, serverTimestamp, arrayUnion }
   from "https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -325,11 +325,36 @@ $("#logoutBtn").onclick = logout; $("#pendLogout").onclick = logout;
 
 /* ---------- session flow ---------- */
 show("vLoading");
-onAuthStateChanged(auth, u => {
+onAuthStateChanged(auth, async u => {
   stopAll(); user = u; profile = null; notes = []; reqs = []; members = [];
+  appStarted = false;
   $("#whoBox").classList.toggle("hidden", !u);
   if(!u){ show("vAuth"); return; }
   $("#whoName").textContent = u.displayName || u.email;
+
+  // Secure first-login setup for the admin pre-authorized in admins/{uid}.
+  // Ordinary students cannot create an admin marker or an admin profile.
+  try {
+    const profileRef = doc(db, "users", u.uid);
+    const profileSnap = await getDoc(profileRef);
+    if (!profileSnap.exists()) {
+      const adminMarker = await getDoc(doc(db, "admins", u.uid));
+      if (adminMarker.exists()) {
+        await setDoc(profileRef, {
+          name: u.displayName || (u.email || "Admin").split("@")[0],
+          email: u.email || "",
+          semester: "Admin",
+          batch: "Admin",
+          status: "approved",
+          role: "admin",
+          createdAt: serverTimestamp()
+        });
+      }
+    }
+  } catch (err) {
+    toast("Account setup: " + friendly(err));
+  }
+
   unsubs.push(onSnapshot(doc(db, "users", u.uid), snap => {
     profile = snap.exists() ? snap.data() : null;
     route();
