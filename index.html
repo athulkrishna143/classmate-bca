@@ -153,7 +153,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:30px 0 40px}
     <div>
       <span class="eyebrow">BCA · Your batch</span>
       <h1>Learn together.<br><span>Share everything.</span></h1>
-      <p>Notes, requests and class chat — ഒരൊറ്റ സ്ഥലത്ത്. Join ചെയ്യാൻ access request അയക്കൂ; admin approve ചെയ്താൽ ഉള്ളിൽ കയറാം.</p>
+      <p>Notes, requests, and class chat — everything in one place. Send an access request to join. The admin will approve your account.</p>
     </div>
     <div class="card">
       <div class="seg"><button class="on" id="segLogin">Log in</button><button id="segJoin">Request access</button></div>
@@ -182,7 +182,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:30px 0 40px}
 <main class="wrap hidden" id="vPending"><div class="center"><div class="card">
   <div class="big-icon" id="pendIcon">⏳</div>
   <h2 id="pendTitle">Waiting for approval</h2>
-  <p class="sub" id="pendText">നിങ്ങളുടെ request admin-ന് പോയിട്ടുണ്ട്. Approve ചെയ്താൽ ഈ പേജ് സ്വയം തുറക്കും.</p>
+  <p class="sub" id="pendText">Your request has been sent to the admin. This page will open automatically after approval.</p>
   <button class="btn ghost" id="pendLogout">Log out</button>
 </div></div></main>
 
@@ -266,13 +266,13 @@ function ago(ts){
 function clock(ts){ const d=ts?.toDate?ts.toDate():new Date(); return d.toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"}); }
 function friendly(e){
   const c = e?.code || "";
-  if(c.includes("email-already-in-use")) return "ഈ email-ൽ ഇതിനകം account ഉണ്ട്. Log in ചെയ്യൂ.";
-  if(c.includes("invalid-credential")||c.includes("wrong-password")||c.includes("user-not-found")) return "Email അല്ലെങ്കിൽ password തെറ്റാണ്.";
-  if(c.includes("weak-password")) return "Password കുറഞ്ഞത് 6 characters വേണം.";
-  if(c.includes("invalid-email")) return "Email format ശരിയല്ല.";
-  if(c.includes("too-many-requests")) return "കുറേ attempts ആയി. കുറച്ച് കഴിഞ്ഞ് ശ്രമിക്കൂ.";
-  if(c.includes("operation-not-allowed")) return "Firebase console-ൽ Email/Password sign-in enable ചെയ്തിട്ടില്ല.";
-  if(c.includes("permission-denied")) return "Permission ഇല്ല. Firestore rules deploy ചെയ്തിട്ടുണ്ടോ എന്ന് നോക്കൂ.";
+  if(c.includes("email-already-in-use")) return "An account already exists with this email. Please log in.";
+  if(c.includes("invalid-credential")||c.includes("wrong-password")||c.includes("user-not-found")) return "Incorrect email or password.";
+  if(c.includes("weak-password")) return "Password must contain at least 6 characters.";
+  if(c.includes("invalid-email")) return "Please enter a valid email address.";
+  if(c.includes("too-many-requests")) return "Too many attempts. Please try again later.";
+  if(c.includes("operation-not-allowed")) return "Email/Password sign-in is not enabled in the Firebase console.";
+  if(c.includes("permission-denied")) return "Permission denied. Check whether the Firestore rules have been published.";
   return e?.message || "Something went wrong.";
 }
 function show(id){
@@ -322,8 +322,8 @@ $("#joinForm").onsubmit = async e => {
 };
 $("#forgotBtn").onclick = async () => {
   const email = $("#le").value.trim();
-  if(!email){ authMsg("മുകളിൽ email അടിച്ചിട്ട് വീണ്ടും ക്ലിക്ക് ചെയ്യൂ."); return; }
-  try { await sendPasswordResetEmail(auth, email); authMsg("Password reset link email-ൽ അയച്ചിട്ടുണ്ട്.", true); }
+  if(!email){ authMsg("Enter your email above and click again."); return; }
+  try { await sendPasswordResetEmail(auth, email); authMsg("The password reset link has been sent to your email.", true); }
   catch(err){ authMsg(friendly(err)); }
 };
 const logout = () => signOut(auth);
@@ -377,8 +377,8 @@ function route(){
     $("#pendIcon").textContent = declined ? "✕" : "⏳";
     $("#pendTitle").textContent = declined ? "Request declined" : "Waiting for approval";
     $("#pendText").textContent = declined
-      ? "Admin ഈ request approve ചെയ്തിട്ടില്ല. ക്ലാസിലെ admin-നോട് സംസാരിക്കൂ."
-      : "നിങ്ങളുടെ request admin-ന് പോയിട്ടുണ്ട്. Approve ചെയ്താൽ ഈ പേജ് സ്വയം തുറക്കും.";
+      ? "The admin has not approved this request. Please contact your class admin."
+      : "Your request has been sent to the admin. This page will open automatically after approval.";
     show("vPending"); return;
   }
   show("vApp");
@@ -501,17 +501,17 @@ function renderReqs(){
       <div class="grow"><strong>${esc(r.title)}</strong><p>${esc(r.subject)} · by ${esc(r.byName)} · ${ago(r.createdAt)}</p><span class="tag">♡ ${voters.length} need this</span></div>
       <button class="btn ${voted?"ghost":"soft"} sm" data-vote="${r.id}" ${voted?"disabled":""}>${voted?"Voted":"I need this"}</button>
       ${mine ? `<button class="btn danger sm" data-delreq="${r.id}" aria-label="Delete request">✕</button>` : ""}</div>`;
-  }).join("") : `<div class="empty">Open requests ഒന്നുമില്ല. ഒരെണ്ണം തുടങ്ങൂ!</div>`;
+  }).join("") : `<div class="empty">There are no open requests yet. Create the first one!</div>`;
 }
 $("#reqList").onclick = async e => {
   const v = e.target.closest("[data-vote]"), d = e.target.closest("[data-delreq]");
   try {
     if(v) await updateDoc(doc(db,"requests",v.dataset.vote), { voters: arrayUnion(user.uid) });
-    if(d && confirm("ഈ request delete ചെയ്യട്ടെ?")) await deleteDoc(doc(db,"requests",d.dataset.delreq));
+    if(d && confirm("Do you want to delete this request?")) await deleteDoc(doc(db,"requests",d.dataset.delreq));
   } catch(err){ toast(friendly(err)); }
 };
 $("#addReq").onclick = () => {
-  modal("Request notes","ഏത് notes ആണ് വേണ്ടത്?",
+  modal("Request notes","Which notes do you need?",
   `<form id="rf"><div class="field"><label for="rt">What do you need?</label><input id="rt" required maxlength="120" placeholder="e.g. Linux shell scripting programs"></div>
    <div class="field"><label for="rs">Subject</label><select id="rs">${SUBJECTS.map(s=>`<option>${s}</option>`).join("")}</select></div>
    <div style="display:flex;gap:8px"><button class="btn ghost full" type="button" id="cx">Cancel</button><button class="btn full" type="submit">Post request</button></div></form>`);
@@ -533,7 +533,7 @@ function renderChat(msgs){
     const me = m.uid === user.uid;
     return `<div class="bubble-row ${me?"me":""}"><div class="avatar">${esc(initials(m.byName))}</div>
       <div class="bubble">${me?"":`<b>${esc(m.byName)}</b>`}${esc(m.text)}<time>${clock(m.createdAt)}</time></div></div>`;
-  }).join("") : `<div class="empty" style="margin:auto">ആദ്യത്തെ message അയക്കൂ 👋</div>`;
+  }).join("") : `<div class="empty" style="margin:auto">Send the first message 👋</div>`;
   if(atBottom || tab !== "chat") log.scrollTop = log.scrollHeight;
 }
 $("#chatForm").onsubmit = async e => {
@@ -577,7 +577,7 @@ function renderAdmin(){
   $("#pendList").innerHTML = pend.length ? pend.map(m => `<div class="item"><div class="avatar">${esc(initials(m.name))}</div>
     <div class="grow"><strong>${esc(m.name)}</strong><p>${esc(m.email)} · ${esc(m.semester)} · ${esc(m.batch)}</p></div>
     <button class="btn sm" data-approve="${m.id}">Approve</button><button class="btn danger sm" data-decline="${m.id}">Decline</button></div>`).join("")
-    : `<div class="empty">Pending requests ഒന്നുമില്ല.</div>`;
+    : `<div class="empty">There are no pending requests.</div>`;
   $("#memList").innerHTML = ok.map(m => `<div class="item"><div class="avatar">${esc(initials(m.name))}</div>
     <div class="grow"><strong>${esc(m.name)}${m.role==="admin"?" · Admin":""}</strong><p>${esc(m.email)} · ${esc(m.semester)} · ${esc(m.batch)}</p></div>
     ${m.id!==user.uid ? `<button class="btn ghost sm" data-revoke="${m.id}">Remove</button>` : ""}</div>`).join("");
@@ -587,7 +587,7 @@ $("#pAdmin").onclick = async e => {
   try {
     if(a){ await updateDoc(doc(db,"users",a.dataset.approve), { status:"approved" }); toast("Approved ✓"); }
     if(d){ await updateDoc(doc(db,"users",d.dataset.decline), { status:"declined" }); toast("Declined."); }
-    if(r && confirm("ഈ member-ന്റെ access remove ചെയ്യട്ടെ?")){ await updateDoc(doc(db,"users",r.dataset.revoke), { status:"declined" }); toast("Access removed."); }
+    if(r && confirm("Do you want to remove this member's access?")){ await updateDoc(doc(db,"users",r.dataset.revoke), { status:"declined" }); toast("Access removed."); }
   } catch(err){ toast(friendly(err)); }
 };
 </script>
