@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Classmate · BCA Class Hub</title>
+<title>Classmate · BCA Class </title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+Malayalam:wght@400;600&display=swap">
@@ -133,7 +133,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:30px 0 40px}
 <body>
 
 <header class="top"><div class="wrap">
-  <div class="brand"><div class="logo">✳</div><div>classmate<small>BCA CLASS HUB</small></div></div>
+  <div class="brand"><div class="logo">✳</div><div>classmate<small>BCA CLASS </small></div></div>
   <div class="who hidden" id="whoBox">
     <span class="name" id="whoName"></span>
     <button class="btn ghost sm" id="logoutBtn">Log out</button>
@@ -165,7 +165,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:30px 0 40px}
         <div class="field"><label for="je">Email</label><input id="je" type="email" required autocomplete="email"></div>
         <div class="row2">
           <div class="field"><label for="js">Semester</label><select id="js"><option>Semester 1</option><option>Semester 2</option><option>Semester 3</option><option>Semester 4</option><option>Semester 5</option><option>Semester 6</option></select></div>
-          <div class="field"><label for="jb">Class / batch</label><input id="jb" required maxlength="20" placeholder="BCA A"></div>
+          <div class="field"><label for="jb">Class / batch</label><input id="jb" required maxlength="20" placeholder="BCA"></div>
         </div>
         <div class="field"><label for="jp">Password</label><input id="jp" type="password" required minlength="6" autocomplete="new-password" placeholder="At least 6 characters"></div>
         <button class="btn full" type="submit">Send access request</button>
@@ -223,7 +223,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:30px 0 40px}
   </section>
 </main>
 
-<footer>© 2026 Classmate · BCA Class Hub</footer>
+<footer>© 2026 powerd by Athul Krishna</footer>
 <div id="modalRoot"></div><div id="toastRoot"></div>
 
 <script type="module">
@@ -251,7 +251,7 @@ const db = getFirestore(app);
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const initials = n => (n || "?").trim().split(/\s+/).slice(0,2).map(w => w[0]).join("").toUpperCase();
-const SUBJECTS = ["Programming","Computer Science","Mathematics","Management","Other"];
+const SUBJECTS = ["C Programming","English","Mathematics","Management","Linux","DE","Other"];
 function toast(m){ const r=$("#toastRoot"); r.innerHTML=`<div class="toast">${esc(m)}</div>`; clearTimeout(toast.t); toast.t=setTimeout(()=>r.innerHTML="",2800); }
 function ago(ts){
   const d = ts?.toDate ? ts.toDate() : null; if(!d) return "just now";
