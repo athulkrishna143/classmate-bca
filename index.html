@@ -197,7 +197,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:30px 0 40px}
   <nav class="tabs" id="tabs">
     <button class="tab on" data-tab="notes">Notes</button>
     <button class="tab" data-tab="requests">Requests</button>
-    <button class="tab" data-tab="chat">Class chat<span id="chatNotify" class="chat-notify hidden" aria-label="New chat messages"></span></button>
+    <button class="tab" data-tab="chat">Class chat<span id="chatNotify" class="chat-notify blink" aria-label="Class chat"></span></button>
     <button class="tab hidden" data-tab="admin" id="adminTab">Admin<span class="badge hidden" id="pendBadge">0</span></button>
   </nav>
 
@@ -332,7 +332,7 @@ $("#logoutBtn").onclick = logout; $("#pendLogout").onclick = logout;
 show("vLoading");
 onAuthStateChanged(auth, async u => {
   stopAll(); user = u; profile = null; notes = []; reqs = []; members = []; chatInitialSnapshot = false;
-  $("#chatNotify")?.classList.add("hidden");
+
   appStarted = false;
   $("#whoBox").classList.toggle("hidden", !u);
   if(!u){ show("vAuth"); return; }
@@ -398,7 +398,7 @@ function startData(){
       const hasNewFromOthers = s.docChanges().some(change =>
         change.type === "added" && change.doc.data().uid !== user.uid
       );
-      if (hasNewFromOthers && tab !== "chat") $("#chatNotify").classList.remove("hidden");
+      // The green chat indicator stays visible at all times.
     } else {
       chatInitialSnapshot = true;
     }
@@ -416,7 +416,7 @@ function setTab(t){
   tab = t;
   document.querySelectorAll(".tab").forEach(b => b.classList.toggle("on", b.dataset.tab === t));
   [["notes","pNotes"],["requests","pRequests"],["chat","pChat"],["admin","pAdmin"]].forEach(([k,id]) => $("#"+id).classList.toggle("hidden", k !== t));
-  if(t === "chat"){ $("#chatNotify").classList.add("hidden"); const l = $("#chatLog"); l.scrollTop = l.scrollHeight; }
+  if(t === "chat"){ const l = $("#chatLog"); l.scrollTop = l.scrollHeight; }
 }
 $("#tabs").onclick = e => { const b = e.target.closest(".tab"); if(b) setTab(b.dataset.tab); };
 
