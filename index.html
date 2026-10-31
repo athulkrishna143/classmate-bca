@@ -84,6 +84,10 @@ header.top .wrap{display:flex;align-items:center;justify-content:space-between;h
 .tabs::-webkit-scrollbar{display:none}
 .tab{border:1px solid var(--border);background:var(--surface);border-radius:999px;padding:9px 16px;font-weight:700;font-size:13px;color:var(--muted);white-space:nowrap}
 .tab.on{background:var(--primary);color:var(--on-primary);border-color:transparent}
+.chat-notify{display:inline-block;width:9px;height:9px;margin-left:8px;border-radius:50%;background:#ef4444;vertical-align:middle;box-shadow:0 0 0 2px var(--surface)}
+.chat-notify.blink{animation:chatBlink 1s ease-in-out infinite}
+@keyframes chatBlink{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.2;transform:scale(.72)}}
+@media(prefers-reduced-motion:reduce){.chat-notify.blink{animation:none}}
 .badge{display:inline-block;min-width:18px;padding:1px 6px;margin-left:6px;border-radius:999px;background:var(--orange-soft);color:var(--orange);font-size:11px;font-weight:800}
 .toolbar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
 .toolbar input{flex:1;min-width:180px;border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:11px 13px;outline:none}
@@ -193,7 +197,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:30px 0 40px}
   <nav class="tabs" id="tabs">
     <button class="tab on" data-tab="notes">Notes</button>
     <button class="tab" data-tab="requests">Requests</button>
-    <button class="tab" data-tab="chat">Class chat</button>
+    <button class="tab" data-tab="chat">Class chat<span id="chatNotify" class="chat-notify hidden" aria-label="New chat messages"></span></button>
     <button class="tab hidden" data-tab="admin" id="adminTab">Admin<span class="badge hidden" id="pendBadge">0</span></button>
   </nav>
 
@@ -283,6 +287,7 @@ const closeModal = () => $("#modalRoot").innerHTML = "";
 let user = null, profile = null, unsubs = [];
 let notes = [], reqs = [], members = [];
 let filter = "All", tab = "notes";
+let chatInitialSnapshot = false;
 const isApproved = () => profile?.status === "approved";
 const isAdmin = () => isApproved() && profile?.role === "admin";
 const stopAll = () => { unsubs.forEach(u => u()); unsubs = []; };
@@ -326,7 +331,8 @@ $("#logoutBtn").onclick = logout; $("#pendLogout").onclick = logout;
 /* ---------- session flow ---------- */
 show("vLoading");
 onAuthStateChanged(auth, async u => {
-  stopAll(); user = u; profile = null; notes = []; reqs = []; members = [];
+  stopAll(); user = u; profile = null; notes = []; reqs = []; members = []; chatInitialSnapshot = false;
+  $("#chatNotify")?.classList.add("hidden");
   appStarted = false;
   $("#whoBox").classList.toggle("hidden", !u);
   if(!u){ show("vAuth"); return; }
@@ -388,6 +394,14 @@ function startData(){
     reqs = s.docs.map(d => ({id:d.id, ...d.data()})); renderReqs(); $("#nReqs").textContent = reqs.length;
   }, e => toast(friendly(e))));
   unsubs.push(onSnapshot(query(collection(db,"messages"), orderBy("createdAt","desc"), limit(60)), s => {
+    if (chatInitialSnapshot) {
+      const hasNewFromOthers = s.docChanges().some(change =>
+        change.type === "added" && change.doc.data().uid !== user.uid
+      );
+      if (hasNewFromOthers && tab !== "chat") $("#chatNotify").classList.remove("hidden");
+    } else {
+      chatInitialSnapshot = true;
+    }
     renderChat(s.docs.map(d => ({id:d.id, ...d.data()})).reverse());
   }, e => toast(friendly(e))));
   if(isAdmin()){
@@ -402,7 +416,7 @@ function setTab(t){
   tab = t;
   document.querySelectorAll(".tab").forEach(b => b.classList.toggle("on", b.dataset.tab === t));
   [["notes","pNotes"],["requests","pRequests"],["chat","pChat"],["admin","pAdmin"]].forEach(([k,id]) => $("#"+id).classList.toggle("hidden", k !== t));
-  if(t === "chat"){ const l = $("#chatLog"); l.scrollTop = l.scrollHeight; }
+  if(t === "chat"){ $("#chatNotify").classList.add("hidden"); const l = $("#chatLog"); l.scrollTop = l.scrollHeight; }
 }
 $("#tabs").onclick = e => { const b = e.target.closest(".tab"); if(b) setTab(b.dataset.tab); };
 
