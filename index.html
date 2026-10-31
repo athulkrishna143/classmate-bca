@@ -220,7 +220,8 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:30px 0 40px}
   </section>
 
   <section id="pAdmin" class="hidden">
-    <h3 style="margin:0 0 10px">Pending requests</h3>
+    <div class="toolbar" style="justify-content:space-between;align-items:center"><div><h3 style="margin:0">Class chat management</h3><p style="margin:4px 0 0;color:var(--muted);font-size:12px">Clear all messages from the class chat. This cannot be undone.</p></div><button class="btn danger" id="clearChatBtn" type="button">Clear chat</button></div>
+    <h3 style="margin:20px 0 10px">Pending requests</h3>
     <div class="list" id="pendList" style="margin-bottom:24px"></div>
     <h3 style="margin:0 0 10px">Members</h3>
     <div class="list" id="memList"></div>
@@ -234,7 +235,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:30px 0 40px}
 import { initializeApp } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
 import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile, sendPasswordResetEmail }
   from "https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, onSnapshot, collection, query, orderBy, limit, serverTimestamp, arrayUnion }
+import { getFirestore, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, getDocs, writeBatch, onSnapshot, collection, query, orderBy, limit, serverTimestamp, arrayUnion }
   from "https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -541,6 +542,30 @@ $("#chatForm").onsubmit = async e => {
   inp.value = "";
   try { await addDoc(collection(db,"messages"), { text, uid:user.uid, byName:profile.name, createdAt:serverTimestamp() }); }
   catch(err){ inp.value = text; toast(friendly(err)); }
+};
+
+/* ---------- admin chat cleanup ---------- */
+$("#clearChatBtn").onclick = async () => {
+  if (!isAdmin()) { toast("Only admins can clear the class chat."); return; }
+  if (!confirm("Delete ALL class chat messages for everyone? This cannot be undone.")) return;
+  const btn = $("#clearChatBtn");
+  btn.disabled = true;
+  btn.textContent = "Clearing…";
+  try {
+    const snap = await getDocs(collection(db,"messages"));
+    const docs = snap.docs;
+    for (let i = 0; i < docs.length; i += 450) {
+      const batch = writeBatch(db);
+      docs.slice(i, i + 450).forEach(item => batch.delete(item.ref));
+      await batch.commit();
+    }
+    toast(`Chat cleared. ${docs.length} message(s) deleted.`);
+  } catch(err) {
+    toast("Could not clear chat: " + friendly(err));
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Clear chat";
+  }
 };
 
 /* ---------- admin ---------- */
