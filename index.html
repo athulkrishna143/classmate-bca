@@ -405,9 +405,18 @@ function startData(){
     }
     renderChat(s.docs.map(d => ({id:d.id, ...d.data()})).reverse());
   }, e => toast(friendly(e))));
+  // Every approved member reads only the public aggregate count, not other users' profiles.
+  unsubs.push(onSnapshot(doc(db,"stats","members"), snap => {
+    $("#nMembers").textContent = snap.exists() ? (snap.data().count ?? 0) : "0";
+  }, e => toast(friendly(e))));
   if(isAdmin()){
-    unsubs.push(onSnapshot(query(collection(db,"users"), orderBy("createdAt","desc")), s => {
-      members = s.docs.map(d => ({id:d.id, ...d.data()})); renderAdmin();
+    unsubs.push(onSnapshot(query(collection(db,"users"), orderBy("createdAt","desc")), async snap => {
+      members = snap.docs.map(d => ({id:d.id, ...d.data()}));
+      renderAdmin();
+      const count = members.filter(m => m.status === "approved").length;
+      try {
+        await setDoc(doc(db,"stats","members"), {count, updatedAt:serverTimestamp()});
+      } catch(err) { toast("Could not update member count: " + friendly(err)); }
     }, e => toast(friendly(e))));
   }
 }
