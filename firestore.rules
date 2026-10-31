@@ -59,6 +59,13 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Approved members can read the aggregate count; only admins can update it.
+    match /stats/{id} {
+      allow read: if approved() && id == 'members';
+      allow create, update: if isAdmin() && id == 'members';
+      allow delete: if false;
+    }
+
     match /notes/{id} {
       allow read: if approved();
       allow create: if approved()
