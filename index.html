@@ -230,6 +230,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:30px 0 40px}
 import { initializeApp } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-app.js";
 import { getAuth, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut, updateProfile, sendPasswordResetEmail }
   from "https://www.gstatic.com/firebasejs/13.1.0/firebase-auth.js";
+import { getStorage, ref as storageRef, uploadBytes, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/13.1.0/firebase-storage.js";
 import { getFirestore, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, onSnapshot, collection, query, orderBy, limit, serverTimestamp, arrayUnion }
   from "https://www.gstatic.com/firebasejs/13.1.0/firebase-firestore.js";
 
@@ -242,6 +243,7 @@ const firebaseConfig = {
   appId: "1:107815183859:web:d3a5d36c9c54a9d86fde86"
 };
 const app = initializeApp(firebaseConfig);
+const storage = getStorage(app);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
@@ -418,34 +420,61 @@ function renderNotes(){
   const found = notes.filter(n => (filter==="All" || n.subject===filter) && `${n.title} ${n.subject} ${n.byName}`.toLowerCase().includes(q));
   $("#noteList").innerHTML = found.length ? found.map(n => {
     const mine = n.uid === user.uid || isAdmin();
-    const ext = (n.link.split("?")[0].split(".").pop() || "").toLowerCase();
-    const label = ["pdf","doc","docx","ppt","pptx","xls","xlsx"].includes(ext) ? ext.toUpperCase().slice(0,4) : "LINK";
+    const ext = (n.fileName || n.link || "").split("?")[0].split(".").pop().toLowerCase();
+    const label = ["pdf","doc","docx","ppt","pptx","xls","xlsx","png","jpg","jpeg"].includes(ext) ? ext.toUpperCase().slice(0,4) : "FILE";
     return `<article class="item"><div class="ficon">${esc(label)}</div>
       <div class="grow"><strong>${esc(n.title)}</strong><p>${esc(n.byName)} · ${ago(n.createdAt)}</p><span class="tag">${esc(n.subject)}</span></div>
       <a class="btn soft sm" href="${esc(n.link)}" target="_blank" rel="noopener noreferrer">Open ↗</a>
       ${mine ? `<button class="btn danger sm" data-delnote="${n.id}" aria-label="Delete note">✕</button>` : ""}</article>`;
-  }).join("") : `<div class="empty">ഇതുവരെ notes ഒന്നുമില്ല. ആദ്യത്തെ note നിങ്ങൾ share ചെയ്യൂ!</div>`;
+  }).join("") : `<div class="empty">No notes uploaded yet. Share the first file!</div>`;
 }
 $("#noteList").onclick = async e => {
   const d = e.target.closest("[data-delnote]"); if(!d) return;
-  if(!confirm("ഈ note delete ചെയ്യട്ടെ?")) return;
-  try { await deleteDoc(doc(db,"notes",d.dataset.delnote)); toast("Note deleted."); } catch(err){ toast(friendly(err)); }
+  if(!confirm("Delete this note?")) return;
+  const note = notes.find(n => n.id === d.dataset.delnote);
+  try {
+    await deleteDoc(doc(db,"notes",d.dataset.delnote));
+    if(note?.storagePath) {
+      try { await deleteObject(storageRef(storage,note.storagePath)); }
+      catch(err){ toast("Note removed, but file cleanup needs attention: " + friendly(err)); }
+    }
+    toast("Note deleted.");
+  } catch(err){ toast(friendly(err)); }
 };
 $("#addNote").onclick = () => {
-  modal("Share class notes","Google Drive / OneDrive link ഇവിടെ paste ചെയ്യൂ (sharing: “Anyone with the link”).",
+  modal("Upload class notes","Choose a file from your device. Maximum 15 MB.",
   `<form id="nf"><div class="field"><label for="nt">Title</label><input id="nt" required maxlength="120" placeholder="e.g. C Programming — Unit 2"></div>
-   <div class="field"><label for="ns">Subject</label><select id="ns">${SUBJECTS.map(s=>`<option>${s}</option>`).join("")}</select></div>
-   <div class="field"><label for="nl">File link</label><input id="nl" type="url" required placeholder="https://drive.google.com/…"></div>
-   <div style="display:flex;gap:8px"><button class="btn ghost full" type="button" id="cx">Cancel</button><button class="btn full" type="submit">Share</button></div></form>`);
+   <div class="field"><label for="ns">Subject</label><select id="ns">${SUBJECTS.map(s=>`<option>${esc(s)}</option>`).join("")}</select></div>
+   <div class="field"><label for="noteFile">Select PDF, Word, PPT or image</label><input id="noteFile" type="file" accept=".pdf,.doc,.docx,.ppt,.pptx,.png,.jpg,.jpeg" required></div>
+   <div id="uploadStatus" role="status" aria-live="polite"></div>
+   <div style="display:flex;gap:8px"><button class="btn ghost full" type="button" id="cx">Cancel</button><button class="btn full" type="submit" id="shareBtn">Upload</button></div></form>`);
   $("#cx").onclick = closeModal;
   $("#nf").onsubmit = async e => {
     e.preventDefault();
-    const link = $("#nl").value.trim();
-    if(!/^https?:\/\//i.test(link)){ toast("Link http:// അല്ലെങ്കിൽ https:// ൽ തുടങ്ങണം."); return; }
+    const file = $("#noteFile").files[0];
+    const allowed = ["pdf","doc","docx","ppt","pptx","png","jpg","jpeg"];
+    const ext = (file?.name.split(".").pop() || "").toLowerCase();
+    if(!file || !allowed.includes(ext)){ toast("Choose a PDF, Word, PPT or image file."); return; }
+    if(file.size > 15 * 1024 * 1024){ toast("File must be 15 MB or smaller."); return; }
+    const btn = $("#shareBtn");
+    btn.disabled = true;
+    $("#cx").disabled = true;
+    $("#uploadStatus").textContent = "Uploading file…";
+    let path = null;
     try {
-      await addDoc(collection(db,"notes"), { title:$("#nt").value.trim(), subject:$("#ns").value, link, uid:user.uid, byName:profile.name, createdAt:serverTimestamp() });
-      closeModal(); toast("Note shared 🎉");
-    } catch(err){ toast(friendly(err)); }
+      path = `notes/${user.uid}/${crypto.randomUUID()}.${ext}`;
+      const ref = storageRef(storage,path);
+      await uploadBytes(ref,file,{contentType:file.type || "application/octet-stream"});
+      const link = await getDownloadURL(ref);
+      $("#uploadStatus").textContent = "Saving note details…";
+      await addDoc(collection(db,"notes"), {title:$("#nt").value.trim(),subject:$("#ns").value,link,storagePath:path,fileName:file.name,uid:user.uid,byName:profile.name,createdAt:serverTimestamp()});
+      closeModal(); toast("Note uploaded successfully!");
+    } catch(err) {
+      if(path) { try { await deleteObject(storageRef(storage,path)); } catch(_) {} }
+      $("#uploadStatus").textContent = "Upload failed: " + friendly(err);
+      toast(friendly(err));
+      btn.disabled = false; $("#cx").disabled = false;
+    }
   };
 };
 
