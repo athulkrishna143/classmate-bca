@@ -197,6 +197,7 @@ let appStarted = false;
 function route(){
   if(!user) return;
   if(!isApproved()){
+    $("#profileBtn").classList.add("hidden");
     appStarted = false;
     const declined = profile?.status === "declined";
     $("#pendIcon").textContent = declined ? "✕" : "⏳";
