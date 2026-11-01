@@ -20,6 +20,12 @@ const db = getFirestore(app);
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const initials = n => (n || "?").trim().split(/\s+/).slice(0,2).map(w => w[0]).join("").toUpperCase();
+function avatarHTML(photoURL, name, extraClass = "") {
+  const cls = ("avatar " + extraClass).trim();
+  return photoURL
+    ? `<div class="${cls}"><img src="${esc(photoURL)}" alt="${esc(name || "Member")} avatar" loading="lazy"></div>`
+    : `<div class="${cls}" aria-label="${esc(name || "Member")} avatar">${esc(initials(name))}</div>`;
+}
 const SUBJECTS = ["C Programming","English","Mathematics","Management","Linux","DE","Other"];
 function toast(m){ const r=$("#toastRoot"); r.innerHTML=`<div class="toast">${esc(m)}</div>`; clearTimeout(toast.t); toast.t=setTimeout(()=>r.innerHTML="",2800); }
 function ago(ts){
@@ -49,6 +55,58 @@ function modal(title, sub, body){
   $("#bd").addEventListener("click", e => { if(e.target.id==="bd") closeModal(); });
 }
 const closeModal = () => $("#modalRoot").innerHTML = "";
+function refreshHeaderAvatar() {
+  const button = $("#profileBtn");
+  if (!button) return;
+  button.innerHTML = profile?.avatarURL
+    ? `<img src="${esc(profile.avatarURL)}" alt="Your profile photo">`
+    : esc(initials(profile?.name || user?.displayName || user?.email));
+}
+function openProfileEditor() {
+  modal("Your profile photo", "Upload a JPG, PNG or WebP image (maximum 2 MB). You can change it anytime.",
+    `<div id="avatarPreview" class="avatar large">${profile?.avatarURL ? `<img src="${esc(profile.avatarURL)}" alt="Current profile photo">` : esc(initials(profile?.name || user?.displayName || user?.email))}</div>
+    <form id="avatarForm">
+      <div class="field"><label for="avatarFile">Choose profile photo</label><input id="avatarFile" type="file" accept="image/jpeg,image/png,image/webp" required></div>
+      <div id="avatarStatus" role="status" aria-live="polite" style="font-size:12px;color:var(--muted);margin-bottom:12px"></div>
+      <div style="display:flex;gap:8px"><button class="btn ghost full" type="button" id="avatarCancel">Cancel</button><button class="btn full" type="submit" id="avatarSave">Save photo</button></div>
+    </form>`);
+  $("#avatarCancel").onclick = closeModal;
+  $("#avatarFile").onchange = () => {
+    const file = $("#avatarFile").files[0];
+    if (!file) return;
+    if (!["image/jpeg","image/png","image/webp"].includes(file.type) || file.size > 2 * 1024 * 1024) return;
+    const previewURL = URL.createObjectURL(file);
+    $("#avatarPreview").innerHTML = `<img src="${previewURL}" alt="New profile photo preview">`;
+  };
+  $("#avatarForm").onsubmit = async e => {
+    e.preventDefault();
+    const file = $("#avatarFile").files[0];
+    if (!file) { $("#avatarStatus").textContent = "Choose a photo first."; return; }
+    if (!["image/jpeg","image/png","image/webp"].includes(file.type)) { $("#avatarStatus").textContent = "Use a JPG, PNG or WebP image."; return; }
+    if (file.size > 2 * 1024 * 1024) { $("#avatarStatus").textContent = "Photo must be 2 MB or smaller."; return; }
+    const save = $("#avatarSave");
+    save.disabled = true;
+    $("#avatarCancel").disabled = true;
+    $("#avatarStatus").textContent = "Uploading photo…";
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("upload_preset", "classmate_notes");
+      const response = await fetch("https://api.cloudinary.com/v1_1/ag2bwflq/image/upload", { method:"POST", body:formData });
+      const uploaded = await response.json();
+      if (!response.ok || !uploaded.secure_url) throw new Error(uploaded.error?.message || "Photo upload failed.");
+      await updateDoc(doc(db, "users", user.uid), { avatarURL: uploaded.secure_url });
+      closeModal();
+      toast("Profile photo updated.");
+    } catch(err) {
+      $("#avatarStatus").textContent = "Upload failed: " + friendly(err);
+      toast(friendly(err));
+      save.disabled = false;
+      $("#avatarCancel").disabled = false;
+    }
+  };
+}
+$("#profileBtn").onclick = openProfileEditor;
 
 /* ---------- state ---------- */
 let user = null, profile = null, unsubs = [];
@@ -130,6 +188,7 @@ onAuthStateChanged(auth, async u => {
 
   unsubs.push(onSnapshot(doc(db, "users", u.uid), snap => {
     profile = snap.exists() ? snap.data() : null;
+    refreshHeaderAvatar();
     route();
   }, err => toast(friendly(err))));
 });
@@ -148,6 +207,7 @@ function route(){
     show("vPending"); return;
   }
   show("vApp");
+  $("#profileBtn").classList.remove("hidden");
   $("#adminTab").classList.toggle("hidden", !isAdmin());
   if(!isAdmin() && tab === "admin") setTab("notes");
   if(!appStarted){ appStarted = true; startData(); }
@@ -211,7 +271,7 @@ function renderNotes(){
     const ext = (n.fileName || n.link || "").split("?")[0].split(".").pop().toLowerCase();
     const label = ["pdf","doc","docx","ppt","pptx","xls","xlsx","png","jpg","jpeg"].includes(ext) ? ext.toUpperCase().slice(0,4) : "FILE";
     return `<article class="item"><div class="ficon">${esc(label)}</div>
-      <div class="grow"><strong>${esc(n.title)}</strong><p>${esc(n.byName)} · ${ago(n.createdAt)}</p><span class="tag">${esc(n.subject)}</span></div>
+      <div class="grow"><strong>${esc(n.title)}</strong><p>${avatarHTML(n.byPhotoURL,n.byName,"mini")}${esc(n.byName)} · ${ago(n.createdAt)}</p><span class="tag">${esc(n.subject)}</span></div>
       <a class="btn soft sm" href="${esc(n.link)}" target="_blank" rel="noopener noreferrer">Open ↗</a>
       ${mine ? `<button class="btn danger sm" data-delnote="${n.id}" aria-label="Delete note">✕</button>` : ""}</article>`;
   }).join("") : `<div class="empty">No notes uploaded yet. Share the first file!</div>`;
@@ -256,7 +316,7 @@ $("#addNote").onclick = () => {
       if(!response.ok) throw new Error(uploaded.error?.message || "Cloudinary upload failed.");
       const link = uploaded.secure_url;
       $("#uploadStatus").textContent = "Saving note details…";
-      await addDoc(collection(db,"notes"), {title:$("#nt").value.trim(),subject:$("#ns").value,link,storagePath:path,fileName:file.name,uid:user.uid,byName:profile.name,createdAt:serverTimestamp()});
+      await addDoc(collection(db,"notes"), {title:$("#nt").value.trim(),subject:$("#ns").value,link,storagePath:path,fileName:file.name,uid:user.uid,byName:profile.name,byPhotoURL:profile?.avatarURL || "",createdAt:serverTimestamp()});
       closeModal(); toast("Note uploaded successfully!");
     } catch(err) {
       if(path) { try { await deleteObject(storageRef(storage,path)); } catch(_) {} }
@@ -273,7 +333,7 @@ function renderReqs(){
     const voters = r.voters || [], voted = voters.includes(user.uid);
     const mine = r.uid === user.uid || isAdmin();
     return `<div class="item"><div class="ficon" style="background:var(--orange-soft);color:var(--orange)">＋</div>
-      <div class="grow"><strong>${esc(r.title)}</strong><p>${esc(r.subject)} · by ${esc(r.byName)} · ${ago(r.createdAt)}</p><span class="tag">♡ ${voters.length} need this</span></div>
+      <div class="grow"><strong>${esc(r.title)}</strong><p>${esc(r.subject)} · ${avatarHTML(r.byPhotoURL,r.byName,"mini")}${esc(r.byName)} · ${ago(r.createdAt)}</p><span class="tag">♡ ${voters.length} need this</span></div>
       <button class="btn ${voted?"ghost":"soft"} sm" data-vote="${r.id}" ${voted?"disabled":""}>${voted?"Voted":"I need this"}</button>
       ${mine ? `<button class="btn danger sm" data-delreq="${r.id}" aria-label="Delete request">✕</button>` : ""}</div>`;
   }).join("") : `<div class="empty">There are no open requests yet. Create the first one!</div>`;
@@ -294,7 +354,7 @@ $("#addReq").onclick = () => {
   $("#rf").onsubmit = async e => {
     e.preventDefault();
     try {
-      await addDoc(collection(db,"requests"), { title:$("#rt").value.trim(), subject:$("#rs").value, uid:user.uid, byName:profile.name, voters:[user.uid], createdAt:serverTimestamp() });
+      await addDoc(collection(db,"requests"), { title:$("#rt").value.trim(), subject:$("#rs").value, uid:user.uid, byName:profile.name, byPhotoURL:profile?.avatarURL || "", voters:[user.uid], createdAt:serverTimestamp() });
       closeModal(); toast("Request posted.");
     } catch(err){ toast(friendly(err)); }
   };
@@ -306,7 +366,8 @@ function renderChat(msgs){
   const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 80;
   log.innerHTML = msgs.length ? msgs.map(m => {
     const me = m.uid === user.uid;
-    return `<div class="bubble-row ${me?"me":""}"><div class="avatar">${esc(initials(m.byName))}</div>
+    const photo = me ? profile?.avatarURL : m.photoURL;
+    return `<div class="bubble-row ${me?"me":""}">${avatarHTML(photo, m.byName)}
       <div class="bubble">${me?"":`<b>${esc(m.byName)}</b>`}${esc(m.text)}<time>${clock(m.createdAt)}</time></div></div>`;
   }).join("") : `<div class="empty" style="margin:auto">Send the first message 👋</div>`;
   if(atBottom || tab !== "chat") log.scrollTop = log.scrollHeight;
@@ -315,7 +376,7 @@ $("#chatForm").onsubmit = async e => {
   e.preventDefault();
   const inp = $("#chatInput"), text = inp.value.trim(); if(!text) return;
   inp.value = "";
-  try { await addDoc(collection(db,"messages"), { text, uid:user.uid, byName:profile.name, createdAt:serverTimestamp() }); }
+  try { await addDoc(collection(db,"messages"), { text, uid:user.uid, byName:profile.name, photoURL:profile?.avatarURL || "", createdAt:serverTimestamp() }); }
   catch(err){ inp.value = text; toast(friendly(err)); }
 };
 
@@ -349,11 +410,11 @@ function renderAdmin(){
   const ok = members.filter(m => m.status === "approved");
   $("#nMembers").textContent = ok.length;
   $("#pendBadge").textContent = pend.length; $("#pendBadge").classList.toggle("hidden", !pend.length);
-  $("#pendList").innerHTML = pend.length ? pend.map(m => `<div class="item"><div class="avatar">${esc(initials(m.name))}</div>
+  $("#pendList").innerHTML = pend.length ? pend.map(m => `<div class="item">${avatarHTML(m.avatarURL,m.name)}
     <div class="grow"><strong>${esc(m.name)}</strong><p>${esc(m.email)} · ${esc(m.semester)} · ${esc(m.batch)}</p></div>
     <button class="btn sm" data-approve="${m.id}">Approve</button><button class="btn danger sm" data-decline="${m.id}">Decline</button></div>`).join("")
     : `<div class="empty">There are no pending requests.</div>`;
-  $("#memList").innerHTML = ok.map(m => `<div class="item"><div class="avatar">${esc(initials(m.name))}</div>
+  $("#memList").innerHTML = ok.map(m => `<div class="item">${avatarHTML(m.avatarURL,m.name)}
     <div class="grow"><strong>${esc(m.name)}${m.role==="admin"?" · Admin":""}</strong><p>${esc(m.email)} · ${esc(m.semester)} · ${esc(m.batch)}</p></div>
     ${m.id!==user.uid ? `<button class="btn ghost sm" data-revoke="${m.id}">Remove</button>` : ""}</div>`).join("");
 }
